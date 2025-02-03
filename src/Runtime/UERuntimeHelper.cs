@@ -10,18 +10,26 @@ namespace UnityExplorer.Runtime
 
         public static void Init()
         {
+            try
+            {
 #if CPP
             Instance = new Il2CppHelper();
 #else
-            Instance = new MonoHelper();
+                Instance = new MonoHelper();
 #endif
-            Instance.SetupEvents();
+                Instance.SetupEvents();
 
-            LoadBlacklistString(ConfigManager.Reflection_Signature_Blacklist.Value);
-            ConfigManager.Reflection_Signature_Blacklist.OnValueChanged += (string val) =>
+                LoadBlacklistString(ConfigManager.Reflection_Signature_Blacklist.Value);
+                ConfigManager.Reflection_Signature_Blacklist.OnValueChanged += (string val) =>
+                {
+                    LoadBlacklistString(val);
+                };
+            }
+            catch (Exception ex)
             {
-                LoadBlacklistString(val);
-            };
+                ExplorerCore.LogError("Exception in Init: " + ex.ToString());
+            }
+
         }
 
         public abstract void SetupEvents();

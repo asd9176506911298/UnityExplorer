@@ -1,13 +1,25 @@
-﻿namespace UnityExplorer.Inspectors.MouseInspectors
+﻿using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.EventSystems;
+using UnityExplorer.UI;
+using UnityExplorer.UI.Panels;
+
+namespace UnityExplorer.Inspectors.MouseInspectors
 {
     public class WorldInspector : MouseInspectorBase
     {
         private static Camera MainCamera;
-        private static GameObject lastHitObject;
+        public static readonly List<GameObject> LastHitObjects = new();
+        private static readonly List<GameObject> currentHitObjects = new();
 
         public override void OnBeginMouseInspect()
         {
-            MainCamera = Camera.main;
+            foreach (var camera in Camera.allCameras)
+            {
+                if (camera.name == "SceneCamera")
+                    MainCamera = camera;
+            }
 
             if (!MainCamera)
             {
@@ -18,18 +30,37 @@
 
         public override void ClearHitData()
         {
-            lastHitObject = null;
+            currentHitObjects.Clear();
         }
 
         public override void OnSelectMouseInspect()
         {
-            InspectorManager.Inspect(lastHitObject);
+            LastHitObjects.Clear();
+            LastHitObjects.AddRange(currentHitObjects);
+            RuntimeHelper.StartCoroutine(SetPanelActiveCoro());
+        }
+
+        IEnumerator SetPanelActiveCoro()
+        {
+            yield return null;
+            WorldInspectorResultsPanel panel = UIManager.GetPanel<WorldInspectorResultsPanel>(UIManager.Panels.WorldInspectorResults);
+            panel.SetActive(true);
+            panel.ShowResults();
         }
 
         public override void UpdateMouseInspect(Vector2 mousePos)
         {
+            currentHitObjects.Clear();
+
             if (!MainCamera)
-                MainCamera = Camera.main;
+            {
+                foreach (var camera in Camera.allCameras)
+                {
+                    if (camera.name == "SceneCamera")
+                        MainCamera = camera;
+                }
+            }
+
             if (!MainCamera)
             {
                 ExplorerCore.LogWarning("No Main Camera was found, unable to inspect world!");
@@ -38,27 +69,41 @@
             }
 
             Ray ray = MainCamera.ScreenPointToRay(mousePos);
-            Physics.Raycast(ray, out RaycastHit hit, 1000f);
+            var tmp = new Vector3(ray.origin.x, ray.origin.y, 0f);
+            ray.origin = tmp;
 
-            if (hit.transform)
-                OnHitGameObject(hit.transform.gameObject);
-            else if (lastHitObject)
-                MouseInspector.Instance.ClearHitData();
+            RaycastHit2D[] hits = Physics2D.RaycastAll(ray.origin, ray.direction, Mathf.Infinity, Physics2D.DefaultRaycastLayers);
+
+            if (hits.Length > 0)
+            {   
+                foreach (var hit in hits)
+                {
+                    if (hit.collider != null)
+                    {
+                        if (hit.collider.gameObject)
+                        {
+                            currentHitObjects.Add(hit.collider.gameObject);
+                            ExplorerCore.LogWarning(hit.collider.gameObject);
+                        }
+                    }
+                }
+            }
+            
+            OnHitGameObject();
         }
 
-        internal void OnHitGameObject(GameObject obj)
+        internal void OnHitGameObject()
         {
-            if (obj != lastHitObject)
-            {
-                lastHitObject = obj;
-                MouseInspector.Instance.objNameLabel.text = $"<b>Click to Inspect:</b> <color=cyan>{obj.name}</color>";
-                MouseInspector.Instance.objPathLabel.text = $"Path: {obj.transform.GetTransformPath(true)}";
-            }
+            if (currentHitObjects.Any())
+                MouseInspector.Instance.objNameLabel.text = $"Click to view World Objects under mouse: {currentHitObjects.Count}";
+            else
+                MouseInspector.Instance.objNameLabel.text = $"No World objects under mouse.";
         }
 
         public override void OnEndInspect()
         {
-            // not needed
+            //currentHitObjects.Clear();
+            //LastHitObjects.Clear();
         }
     }
 }
