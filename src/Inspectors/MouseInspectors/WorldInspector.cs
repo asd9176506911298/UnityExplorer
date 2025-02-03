@@ -83,7 +83,6 @@ namespace UnityExplorer.Inspectors.MouseInspectors
                         if (hit.collider.gameObject)
                         {
                             currentHitObjects.Add(hit.collider.gameObject);
-                            ExplorerCore.LogWarning(hit.collider.gameObject);
                         }
                     }
                 }
